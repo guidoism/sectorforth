@@ -23,14 +23,14 @@
 001E EB64               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0020 [1700]             │        │Get current return stack pointer
+0020 [1700]             │        │rp@ - Get current return stack pointer
 0022 03                 │ 3      │(-- addr)       
 0023 727040             │"rp@"
 0026 55                 │push bp
 0027 EB5B               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0029 [2000]             │        │-1 if top of stack is 0, 0 otherwise
+0029 [2000]             │        │0= -1 if top of stack is 0, 0 otherwise
 002B 02                 │ 2      │(x -- f)        
 002C 303D               │"0="
 002E 58                 │pop ax
@@ -42,7 +42,7 @@
 0037 EB4B               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0039 [2900]             │        │Add the two values at the top of the stack
+0039 [2900]             │        │+ Add the two values at the top of the stack
 003B 01                 │ 1      │(x1 x2 -- n)    
 003C 2B                 │"+"
 003D 5B                 │pop bx
@@ -52,7 +52,7 @@
 0042 EB40               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0044 [3900]             │        │NAND the two values at the top of the stack
+0044 [3900]             │        │nand - NAND the two values at the top of the stack
 0046 04                 │ 4      │(x1 x2 -- n)
 0047 6E616E64           │"nand"
 004B 5B                 │pop bx
@@ -63,7 +63,7 @@
 0052 EB30               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0054 [4400]             │        │Resume execution at address at the top of the return stack
+0054 [4400]             │        │exit - Resume execution at address at the top of the return stack
 0056 04                 │ 4      │(r:addr --)
 0057 65786974           │"exit"
 005B 87E5               │xchg sp,bp              ; swap SP and BP, SP controls return stack
@@ -72,21 +72,21 @@
 0060 EB22               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0062 [5400]             │        │
+0062 [5400]             │        │tib
 0064 03                 │ 3      │
 0065 746962             │"tib"
 0068 6A00               │push word TIB
 006A EB18               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-006C [6200]             │        │
+006C [6200]             │        │state
 006E 05                 │ 5      │
 006F 7374617465         │"state"
 0074 680010             │push word STATE
 0077 EB0B               │NEXT
                         ╰────────────────────
-                        ╭─────────────────────
-0079 [6C00]             │        │
+                        ╭────────┬────────────
+0079 [6C00]             │        │>in
 007B 03                 │ 3      │
 007C 3E696E             │">in"
 007F 680210             │push word TOIN
@@ -102,16 +102,16 @@
 0091 EBF1                NEXT
 
 0093 [0002]              dw start_HERE
-                        ╭───────┬────────────
-0095 [8700]             │        │
+                        ╭────────┬────────────
+0095 [8700]             │        │latest
 0097 06                 │ 6      │
 0098 6C6174657374       │"latest"
 009E 68[A300]           │push word LATEST
 00A1 EBE1               │NEXT
                         ╰────────────────────
 00A3 [FE00]              dw word_SEMICOLON       ; initialized to last word in dictionary
-                        ╭────────────────────
-00A5 [9500]             │        │
+                        ╭────────┬────────────
+00A5 [9500]             │        │key
 00A7 03                 │ 3      │
 00A8 6B6579             │"key"
 00AB B400               │mov ah,0
@@ -119,16 +119,16 @@
 00AF 50                 │push ax
 00B0 EBD2               │NEXT
                         ╰────────────────────
-                        ╭────────────────────
-00B2 [A500]             │        │
+                        ╭────────┬────────────
+00B2 [A500]             │        │emit
 00B4 04                 │ 4      │
 00B5 656D6974           │"emit"
 00B9 58                 │pop ax
 00BA E82201             │call writechar
 00BD EBC5               │NEXT
                         ╰────────────────────
-                        ╭────────────────────
-00BF [B200]             │        │
+                        ╭────────┬────────────
+00BF [B200]             │        │:
 00C1 01                 │ 1      │
 00C2 3A                 │":"
 00C3 E8B700             │call token              ; parse word from input
@@ -161,8 +161,8 @@
 
 00FC [F000]              dw DOCOL
 
-                        ╭────────────────────
-00FE [BF00]             │        │
+                        ╭────────┬────────────
+00FE [BF00]             │        │;
 0100 81                 │ 1      │
 0101 3B                 │";"
 0102 8B1E[A300]         │mov bx,[LATEST]
@@ -174,7 +174,9 @@
 0117 893E[9300]         │mov [HERE],di           ; advance HERE to next cell
 011B E966FF             │NEXT
                         ╰────────────────────
-                            
+
+     S T A R T
+
 011E FC                  cld                     ; clear direction flag
 011F 0E                  push cs
 0120 0E                  push cs
@@ -182,17 +184,27 @@
 0122 1F                  pop ds
 0123 07                  pop es
 0124 17                  pop ss
-0125 EB0B                jmp init
-0127 B82109              mov ax,0x0921           ; write '!'
-012A BB0400              mov bx,0x0004           ; black background, red text
-012D B90200              mov cx,2                ; twice
-0130 CD10                int 0x10
-0132 BDFE76              mov bp,RP0              ; BP is the return stack pointer
+0125 EB0B              ┌─jmp init
+                       │
+                       │
+     E R R O R         │
+                       │
+0127 B82109            │ mov ax,0x0921           ; write '!'
+012A BB0400            │ mov bx,0x0004           ; black background, red text
+012D B90200            │ mov cx,2                ; twice
+0130 CD10              │ int 0x10
+                       │
+     I N I T           │
+                       │
+0132 BDFE76            └►mov bp,RP0              ; BP is the return stack pointer
 0135 BCFEFF              mov sp,SP0              ; SP is the data stack pointer
 0138 B000                mov al,0
 013A B90410              mov cx,STATE+4
 013D BF0000              mov di,TIB
 0140 F3AA                rep stosb
+
+     I N T E R P
+
 0142 E83800              call token              ; parse word from input
 0145 8B1E[A300]          mov bx,[LATEST]         ; start searching for it in the dictionary
 0149 85DB            .1: test bx,bx              ; zero?
@@ -222,6 +234,9 @@
 0177 7499                jz compile              ; if result is zero, compile
 0179 FFE0                jmp ax                  ; otherwise, interpret (execute) the word
 017B [4201]       .loop: dw interpreter
+
+     T O K E N
+
 017D 8B3E0210            mov di,[TOIN]           ; starting at the current position in TIB
 0181 B9FFFF              mov cx,-1               ; search "indefinitely"
 0184 B020                mov al,32               ; for a character that's not a space
@@ -237,6 +252,9 @@
 019A 49                  dec cx                  ; adjust CX to correct length
 019B 29CF                sub di,cx               ; point to start of parsed word
 019D C3                  ret
+
+     R E A D L I N E
+
 019E B00D                mov al,13
 01A0 E83C00              call writechar          ; CR
 01A3 B00A                mov al,10
@@ -264,6 +282,9 @@
 01D4 E80800              call writechar          ; write a space between user input and
 01D7 C70602100000        mov word [TOIN],0       ; point >IN to start of TIB
 01DD EB9E                jmp token               ; try parsing a word again
+
+     W R I T E C H A R
+
 01DF 50                  push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
 01E0 B700                mov bh,0                ; video page 0 for all BIOS calls
 01E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
