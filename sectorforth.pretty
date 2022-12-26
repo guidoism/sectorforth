@@ -1,6 +1,6 @@
 0000 EA[1E01]5000        jmp 0x0050:start
                         ╭────────────────────
-0005 0000               │link
+0005 0000               │NULL        ; link
 0007 01                 │ 1          ; length
 0008 40                 │"@"         ; name
 0009 5B                 │pop bx
@@ -8,31 +8,31 @@
 000C EB76               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-000E [0500]             │dw link
-0010 01                 │db %3+%%len
-0011 21                 │db %1
+000E [0500]             │
+0010 01                 │
+0011 21                 │"!"
 0012 5B                 │pop bx
 0013 8F07               │pop word [bx]
 0015 EB6D               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0017 [0E00]             │dw link
-0019 03                 │db %3+%%len
-001A 737040             │db %1
+0017 [0E00]             │
+0019 03                 │
+001A 737040             │"sp@"
 001D 54                 │push sp
 001E EB64               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0020 [1700]             │dw link
-0022 03                 │db %3+%%len
-0023 727040             │db %1
+0020 [1700]             │
+0022 03                 │
+0023 727040             │"rp@"
 0026 55                 │push bp
 0027 EB5B               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0029 [2000]             │dw link
-002B 02                 │db %3+%%len
-002C 303D               │db %1
+0029 [2000]             │
+002B 02                 │
+002C 303D               │"0="
 002E 58                 │pop ax
 002F 85C0               │test ax,ax
 0031 0F95C0             │setnz al                ; AL=0 if ZF=1, else AL=1
@@ -42,9 +42,9 @@
 0037 EB4B               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0039 [2900]             │dw link
-003B 01                 │db %3+%%len
-003C 2B                 │db %1
+0039 [2900]             │
+003B 01                 │
+003C 2B                 │"+"
 003D 5B                 │pop bx
 003E 58                 │pop ax
 003F 01D8               │add ax,bx
@@ -52,9 +52,9 @@
 0042 EB40               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0044 [3900]             │dw link
-0046 04                 │db %3+%%len
-0047 6E616E64           │db %1
+0044 [3900]             │
+0046 04                 │
+0047 6E616E64           │"nand"
 004B 5B                 │pop bx
 004C 58                 │pop ax
 004D 21D8               │and ax,bx
@@ -63,36 +63,36 @@
 0052 EB30               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0054 [4400]             │dw link
-0056 04                 │db %3+%%len
-0057 65786974           │db %1
+0054 [4400]             │
+0056 04                 │
+0057 65786974           │"exit"
 005B 87E5               │xchg sp,bp              ; swap SP and BP, SP controls return stack
 005D 5E                 │pop si                  ; pop address to next word
 005E 87E5               │xchg sp,bp              ; restore SP and BP
 0060 EB22               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0062 [5400]             │dw link
-0064 03                 │db %3+%%len
-0065 746962             │db %1
+0062 [5400]             │
+0064 03                 │
+0065 746962             │"tib"
 0068 6A00               │push word TIB
 006A EB18               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-006C [6200]             │dw link
-006E 05                 │db %3+%%len
-006F 7374617465         │db %1
+006C [6200]             │
+006E 05                 │
+006F 7374617465         │"state"
 0074 680010             │push word STATE
 0077 EB0B               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-0079 [6C00]             │dw link
-007B 03                 │db %3+%%len
-007C 3E696E             │db %1
+0079 [6C00]             │
+007B 03                 │
+007C 3E696E             │">in"
 007F 680210             │push word TOIN
 0082 EB00               │NEXT
                         ╰────────────────────
-                        ╭────────────────────
+
 0084 AD                  lodsw                   ; load next word's address into AX
 0085 FFE0                jmp ax                  ; jump directly to it
 0087 [7900]              dw link
@@ -100,37 +100,37 @@
 008A 68657265            db %1
 008E 68[9300]            push word HERE
 0091 EBF1                NEXT
-                        ╰────────────────────
+
 0093 [0002]              dw start_HERE
                         ╭────────────────────
-0095 [8700]             │dw link
-0097 06                 │db %3+%%len
-0098 6C6174657374       │db %1
+0095 [8700]             │
+0097 06                 │
+0098 6C6174657374       │"latest"
 009E 68[A300]           │push word LATEST
 00A1 EBE1               │NEXT
                         ╰────────────────────
 00A3 [FE00]              dw word_SEMICOLON       ; initialized to last word in dictionary
                         ╭────────────────────
-00A5 [9500]             │dw link
-00A7 03                 │db %3+%%len
-00A8 6B6579             │db %1
+00A5 [9500]             │
+00A7 03                 │
+00A8 6B6579             │"key"
 00AB B400               │mov ah,0
 00AD CD16               │int 0x16
 00AF 50                 │push ax
 00B0 EBD2               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-00B2 [A500]             │dw link
-00B4 04                 │db %3+%%len
-00B5 656D6974           │db %1
+00B2 [A500]             │
+00B4 04                 │
+00B5 656D6974           │"emit"
 00B9 58                 │pop ax
 00BA E82201             │call writechar
 00BD EBC5               │NEXT
                         ╰────────────────────
                         ╭────────────────────
-00BF [B200]             │dw link
-00C1 01                 │db %3+%%len
-00C2 3A                 │db %1
+00BF [B200]             │
+00C1 01                 │
+00C2 3A                 │":"
 00C3 E8B700             │call token              ; parse word from input
 00C6 56                 │push si
 00C7 89FE               │mov si,di               ; set parsed word as string copy source
@@ -162,9 +162,9 @@
 00FC [F000]              dw DOCOL
 
                         ╭────────────────────
-00FE [BF00]             │dw link
-0100 81                 │db %3+%%len
-0101 3B                 │db %1
+00FE [BF00]             │
+0100 81                 │
+0101 3B                 │";"
 0102 8B1E[A300]         │mov bx,[LATEST]
 0106 806702BF           │and byte [bx+2],~F_HIDDEN       ; reveal new word
 010A C606001000         │mov byte [STATE],0      ; switch to interpretation state
