@@ -189,55 +189,55 @@
                        │
      E R R O R         │
                        │
-0127 B82109            │ mov ax,0x0921           ; write '!'
-012A BB0400            │ mov bx,0x0004           ; black background, red text
-012D B90200            │ mov cx,2                ; twice
-0130 CD10              │ int 0x10
-                       │
-     I N I T           │
-                       │
-0132 BDFE76            └►mov bp,RP0              ; BP is the return stack pointer
-0135 BCFEFF              mov sp,SP0              ; SP is the data stack pointer
-0138 B000                mov al,0
-013A B90410              mov cx,STATE+4
-013D BF0000              mov di,TIB
-0140 F3AA                rep stosb
-
-     I N T E R P
-
-0142 E83800              call token              ; parse word from input
-0145 8B1E[A300]          mov bx,[LATEST]         ; start searching for it in the dictionary
-0149 85DB            .1: test bx,bx              ; zero?
-014B 74DA                jz error                ; not found, reset interpreter state
-014D 89DE                mov si,bx
-014F AD                  lodsw                   ; skip link
-0150 AC                  lodsb                   ; read flags+length
-0151 88C2                mov dl,al               ; save those for later use
-0153 A840                test al,F_HIDDEN        ; entry hidden?
-0155 750E                jnz .2                  ; if so, skip it
-0157 241F                and al,LENMASK          ; mask out flags
-0159 38C8                cmp al,cl               ; same length?
-015B 7508                jne .2                  ; if not, skip entry
-015D 51                  push cx
-015E 57                  push di
-015F F3A6                repe cmpsb              ; compare strings
-0161 5F                  pop di
-0162 59                  pop cx
-0163 7404                je .3                   ; if equal, search is over
-0165 8B1F            .2: mov bx,[bx]             ; skip to next entry
-0167 EBE0                jmp .1                  ; try again
-0169 89F0            .3: mov ax,si               ; after comparison, SI points to code field
-016B BE[7B01]            mov si,.loop            ; set SI so NEXT loops back to interpreter
-016E 80E280              and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
-0171 0A160010            or dl,[STATE]           ; OR with state
-0175 FECA                dec dl                  ; decrement
-0177 7499                jz compile              ; if result is zero, compile
-0179 FFE0                jmp ax                  ; otherwise, interpret (execute) the word
-017B [4201]       .loop: dw interpreter
-
-     T O K E N
-
-017D 8B3E0210            mov di,[TOIN]           ; starting at the current position in TIB
+0127 B82109           ┌│►mov ax,0x0921           ; write '!'
+012A BB0400           ││ mov bx,0x0004           ; black background, red text
+012D B90200           ││ mov cx,2                ; twice
+0130 CD10             ││ int 0x10
+                      ││
+     I N I T          ││
+                      ││
+0132 BDFE76           │└►mov bp,RP0              ; BP is the return stack pointer
+0135 BCFEFF           │  mov sp,SP0              ; SP is the data stack pointer
+0138 B000             │  mov al,0
+013A B90410           │  mov cx,STATE+4
+013D BF0000           │  mov di,TIB
+0140 F3AA             │  rep stosb
+                      │    
+     I N T E R P      │     
+                      │    
+0142 E83800        ┌──│──call token              ; parse word from input
+0145 8B1E[A300]    │  │  mov bx,[LATEST]         ; start searching for it in the dictionary
+0149 85DB          │┌─│─►test bx,bx              ; zero?  (.1:)
+014B 74DA          ││ └──jz error                ; not found, reset interpreter state
+014D 89DE          ││    mov si,bx
+014F AD            ││    lodsw                   ; skip link
+0150 AC            ││    lodsb                   ; read flags+length
+0151 88C2          ││    mov dl,al               ; save those for later use
+0153 A840          ││    test al,F_HIDDEN        ; entry hidden?
+0155 750E          ││ ┌──jnz .2                  ; if so, skip it
+0157 241F          ││ │  and al,LENMASK          ; mask out flags
+0159 38C8          ││ │  cmp al,cl               ; same length?
+015B 7508          ││ ├──jne .2                  ; if not, skip entry
+015D 51            ││ │  push cx
+015E 57            ││ │  push di
+015F F3A6          ││ │  repe cmpsb              ; compare strings
+0161 5F            ││ │  pop di
+0162 59            ││ │  pop cx
+0163 7404          ││┌│──je .3                   ; if equal, search is over
+0165 8B1F          │││└─►mov bx,[bx]             ; skip to next entry (.2:)
+0167 EBE0          │└│───jmp .1                  ; try again
+0169 89F0          │ └──►mov ax,si               ; after comparison, SI points to code field (.3:)
+016B BE[7B01]      │     mov si,.loop            ; set SI so NEXT loops back to interpreter
+016E 80E280        │     and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
+0171 0A160010      │     or dl,[STATE]           ; OR with state
+0175 FECA          │     dec dl                  ; decrement
+0177 7499          │     jz compile              ; if result is zero, compile
+0179 FFE0          │     jmp ax                  ; otherwise, interpret (execute) the word
+017B [4201]        │     dw interpreter          ; (.loop:)
+                   │    
+     T O K E N     │    
+                   │    
+017D 8B3E0210      └────►mov di,[TOIN]           ; starting at the current position in TIB
 0181 B9FFFF              mov cx,-1               ; search "indefinitely"
 0184 B020                mov al,32               ; for a character that's not a space
 0186 F3AE                repe scasb
