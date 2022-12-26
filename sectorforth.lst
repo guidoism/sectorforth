@@ -1,0 +1,548 @@
+     1                                          ; sectorforth - a 512-byte, bootable x86 Forth.
+     2                                          ; Copyright (c) 2020 Cesar Blum
+     3                                          ; Distributed under the MIT license. See LICENSE for details.
+     4                                          ;
+     5                                          ; sectorforth is a 16-bit x86 Forth that fits entirely within a
+     6                                          ; boot sector (512 bytes).
+     7                                          ;
+     8                                          ; It's a direct threaded Forth, with SI acting as the Forth
+     9                                          ; instruction pointer. Words are executed using LODSW to advance
+    10                                          ; SI and load the next word's address into AX, which is then
+    11                                          ; jumped to.
+    12                                          ;
+    13                                          ; The SP register is used as the data stack pointer, and the BP
+    14                                          ; register acts as the return stack pointer.
+    15                                          ;
+    16                                          ; The minimum CPU required to run sectorforth is the 386, to use
+    17                                          ; the SETNZ instruction.
+    18                                          bits 16
+    19                                          cpu 386
+    20                                  
+    21                                          ; Set CS to a known value by performing a far jump. Memory up to
+    22                                          ; 0x0500 is used by the BIOS. Setting the segment to 0x0500 gives
+    23                                          ; sectorforth an entire free segment to work with.
+    24 00000000 EA[1E01]5000                    jmp 0x0050:start
+    25                                  
+    26                                          ; On x86, the boot sector is loaded at 0x7c00 on boot. In segment
+    27                                          ; 0x0500, that's 0x7700 (0x0050 << 4 + 0x7700 == 0x7c00).
+    28                                          org 0x7700
+    29                                  
+    30                                          ; Define constants for the memory map. Everything is organized
+    31                                          ; within a single 64 KB segment. TIB is placed at 0x0000 to
+    32                                          ; simplify input parsing (the Forth variable >IN ends up being
+    33                                          ; also a pointer into TIB, so there's no need to add >IN to TIB
+    34                                          ; to get a pointer to the parse area). TIB is 4 KB long.
+    35                                  TIB             equ 0x0000      ; terminal input buffer (TIB)
+    36                                  STATE           equ 0x1000      ; current state (0=interpret, 1=compile)
+    37                                  TOIN            equ 0x1002      ; current read offset into TIB (>IN)
+    38                                  RP0             equ 0x76fe      ; bottom of return stack
+    39                                  SP0             equ 0xfffe      ; bottom of data stack
+    40                                  
+    41                                          ; Each dictionary entry is laid out in memory as such:
+    42                                          ;
+    43                                          ; *--------------*--------------*--------------*--------------*
+    44                                          ; | Link pointer | Flags+Length |    Name...   |    Code...   |
+    45                                          ; *--------------*--------------*--------------*--------------*
+    46                                          ;     2 bytes         1 byte      Length bytes     Variable
+    47                                          ;
+    48                                          ; Flags IMMEDIATE and HIDDEN are used in assembly code. Room is
+    49                                          ; left for an additional, user-defined flag, so word names are
+    50                                          ; limited to 32 characters.
+    51                                  F_IMMEDIATE     equ 0x80
+    52                                  F_HIDDEN        equ 0x40
+    53                                  LENMASK         equ 0x1f
+    54                                  
+    55                                          ; Each dictionary entry needs a link to the previous entry. The
+    56                                          ; last entry links to zero, marking the end of the dictionary.
+    57                                          ; As dictionary entries are defined, link will be redefined to
+    58                                          ; point to the previous entry.
+    59                                  %define link 0
+    60                                  
+    61                                          ; defword lays out a dictionary entry where it is expanded.
+    62                                  %macro defword 2-3 0            ; name, label, flags
+    63                                  word_%2:
+    64                                          dw link                 ; link to previous word
+    65                                  %define link word_%2
+    66                                  %strlen %%len %1
+    67                                          db %3+%%len             ; flags+length
+    68                                          db %1                   ; name
+    69                                  %2:                             ; code starts here
+    70                                  %endmacro
+    71                                  
+    72                                          ; NEXT advances execution to the next word. The actual code is
+    73                                          ; placed further ahead for strategic reasons. The macro has to be
+    74                                          ; defined here, since it's used in the words defined ahead.
+    75                                  %define NEXT jmp next
+    76                                  
+    77                                          ; sectorforth has only eight primitive words, with which
+    78                                          ; everything else can be built in Forth:
+    79                                          ;
+    80                                          ; @ ( addr -- x )       Fetch memory at addr
+    81                                          ; ! ( x addr -- )       Store x at addr
+    82                                          ; sp@ ( -- addr )       Get current data stack pointer
+    83                                          ; rp@ ( -- addr )       Get current return stack pointer
+    84                                          ; 0= ( x -- f )         -1 if top of stack is 0, 0 otherwise
+    85                                          ; + ( x1 x2 -- n )      Add the two values at the top of the stack
+    86                                          ; nand ( x1 x2 -- n )   NAND the two values at the top of the stack
+    87                                          ; exit ( r:addr -- )    Resume execution at address at the top of
+    88                                          ;                       the return stack
+    89                                          defword "@",FETCH
+    63                              <1> word_%2:
+    64 00000005 0000                <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000007 01                  <1>  db %3+%%len
+    68 00000008 40                  <1>  db %1
+    69                              <1> %2:
+    90 00000009 5B                              pop bx
+    91 0000000A FF37                            push word [bx]
+    92 0000000C EB76                            NEXT
+    93                                  
+    94                                          defword "!",STORE
+    63                              <1> word_%2:
+    64 0000000E [0500]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000010 01                  <1>  db %3+%%len
+    68 00000011 21                  <1>  db %1
+    69                              <1> %2:
+    95 00000012 5B                              pop bx
+    96 00000013 8F07                            pop word [bx]
+    97 00000015 EB6D                            NEXT
+    98                                  
+    99                                          defword "sp@",SPFETCH
+    63                              <1> word_%2:
+    64 00000017 [0E00]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000019 03                  <1>  db %3+%%len
+    68 0000001A 737040              <1>  db %1
+    69                              <1> %2:
+   100 0000001D 54                              push sp
+   101 0000001E EB64                            NEXT
+   102                                  
+   103                                          defword "rp@",RPFETCH
+    63                              <1> word_%2:
+    64 00000020 [1700]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000022 03                  <1>  db %3+%%len
+    68 00000023 727040              <1>  db %1
+    69                              <1> %2:
+   104 00000026 55                              push bp
+   105 00000027 EB5B                            NEXT
+   106                                  
+   107                                          defword "0=",ZEROEQUALS
+    63                              <1> word_%2:
+    64 00000029 [2000]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 0000002B 02                  <1>  db %3+%%len
+    68 0000002C 303D                <1>  db %1
+    69                              <1> %2:
+   108 0000002E 58                              pop ax
+   109 0000002F 85C0                            test ax,ax
+   110 00000031 0F95C0                          setnz al                ; AL=0 if ZF=1, else AL=1
+   111 00000034 48                              dec ax                  ; AL=ff if AL=0, else AL=0
+   112 00000035 98                              cbw                     ; AH=AL
+   113 00000036 50                              push ax
+   114 00000037 EB4B                            NEXT
+   115                                  
+   116                                          defword "+",PLUS
+    63                              <1> word_%2:
+    64 00000039 [2900]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 0000003B 01                  <1>  db %3+%%len
+    68 0000003C 2B                  <1>  db %1
+    69                              <1> %2:
+   117 0000003D 5B                              pop bx
+   118 0000003E 58                              pop ax
+   119 0000003F 01D8                            add ax,bx
+   120 00000041 50                              push ax
+   121 00000042 EB40                            NEXT
+   122                                  
+   123                                          defword "nand",NAND
+    63                              <1> word_%2:
+    64 00000044 [3900]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000046 04                  <1>  db %3+%%len
+    68 00000047 6E616E64            <1>  db %1
+    69                              <1> %2:
+   124 0000004B 5B                              pop bx
+   125 0000004C 58                              pop ax
+   126 0000004D 21D8                            and ax,bx
+   127 0000004F F7D0                            not ax
+   128 00000051 50                              push ax
+   129 00000052 EB30                            NEXT
+   130                                  
+   131                                          defword "exit",EXIT
+    63                              <1> word_%2:
+    64 00000054 [4400]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000056 04                  <1>  db %3+%%len
+    68 00000057 65786974            <1>  db %1
+    69                              <1> %2:
+   132 0000005B 87E5                            xchg sp,bp              ; swap SP and BP, SP controls return stack
+   133 0000005D 5E                              pop si                  ; pop address to next word
+   134 0000005E 87E5                            xchg sp,bp              ; restore SP and BP
+   135 00000060 EB22                            NEXT
+   136                                  
+   137                                          ; Besides primitives, a few variables are exposed to Forth code:
+   138                                          ; TIB, STATE, >IN, HERE, and LATEST. With sectorforth's >IN being
+   139                                          ; both an offset and a pointer into TIB (as TIB starts at 0x0000),
+   140                                          ; TIB could be left out. But it is exposed so that sectorforth
+   141                                          ; code that accesses the parse area can be written in an idiomatic
+   142                                          ; fashion (e.g. TIB >IN @ +).
+   143                                          defword "tib",TIBVAR
+    63                              <1> word_%2:
+    64 00000062 [5400]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000064 03                  <1>  db %3+%%len
+    68 00000065 746962              <1>  db %1
+    69                              <1> %2:
+   144 00000068 6A00                            push word TIB
+   145 0000006A EB18                            NEXT
+   146                                  
+   147                                          defword "state",STATEVAR
+    63                              <1> word_%2:
+    64 0000006C [6200]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 0000006E 05                  <1>  db %3+%%len
+    68 0000006F 7374617465          <1>  db %1
+    69                              <1> %2:
+   148 00000074 680010                          push word STATE
+   149 00000077 EB0B                            NEXT
+   150                                  
+   151                                          defword ">in",TOINVAR
+    63                              <1> word_%2:
+    64 00000079 [6C00]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 0000007B 03                  <1>  db %3+%%len
+    68 0000007C 3E696E              <1>  db %1
+    69                              <1> %2:
+   152 0000007F 680210                          push word TOIN
+   153 00000082 EB00                            NEXT
+   154                                  
+   155                                          ; Strategically define next here so most jumps to it are short,
+   156                                          ; saving extra bytes that would be taken by near jumps.
+   157                                  next:
+   158 00000084 AD                              lodsw                   ; load next word's address into AX
+   159 00000085 FFE0                            jmp ax                  ; jump directly to it
+   160                                  
+   161                                          ; Words and data space for the HERE and LATEST variables.
+   162                                          defword "here",HEREVAR
+    63                              <1> word_%2:
+    64 00000087 [7900]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000089 04                  <1>  db %3+%%len
+    68 0000008A 68657265            <1>  db %1
+    69                              <1> %2:
+   163 0000008E 68[9300]                        push word HERE
+   164 00000091 EBF1                            NEXT
+   165 00000093 [0002]                  HERE:   dw start_HERE
+   166                                  
+   167                                          defword "latest",LATESTVAR
+    63                              <1> word_%2:
+    64 00000095 [8700]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000097 06                  <1>  db %3+%%len
+    68 00000098 6C6174657374        <1>  db %1
+    69                              <1> %2:
+   168 0000009E 68[A300]                        push word LATEST
+   169 000000A1 EBE1                            NEXT
+   170 000000A3 [FE00]                  LATEST: dw word_SEMICOLON       ; initialized to last word in dictionary
+   171                                  
+   172                                          ; Define a couple of I/O primitives to make things interactive.
+   173                                          ; They can also be used to build a richer interpreter loop.
+   174                                          ;
+   175                                          ; KEY waits for a key press and pushes its scan code (AH) and
+   176                                          ; ASCII character (AL) to the stack, both in a single cell.
+   177                                          defword "key",KEY
+    63                              <1> word_%2:
+    64 000000A5 [9500]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 000000A7 03                  <1>  db %3+%%len
+    68 000000A8 6B6579              <1>  db %1
+    69                              <1> %2:
+   178 000000AB B400                            mov ah,0
+   179 000000AD CD16                            int 0x16
+   180 000000AF 50                              push ax
+   181 000000B0 EBD2                            NEXT
+   182                                  
+   183                                          ; EMIT writes to the screen the ASCII character corresponding to
+   184                                          ; the lowest 8 bits of the value at the top of the stack.
+   185                                          defword "emit",EMIT
+    63                              <1> word_%2:
+    64 000000B2 [A500]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 000000B4 04                  <1>  db %3+%%len
+    68 000000B5 656D6974            <1>  db %1
+    69                              <1> %2:
+   186 000000B9 58                              pop ax
+   187 000000BA E82201                          call writechar
+   188 000000BD EBC5                            NEXT
+   189                                  
+   190                                          ; The colon compiler reads a name from the terminal input buffer,
+   191                                          ; creates a dictionary entry for it, writes machine code to jump
+   192                                          ; to DOCOL, updates LATEST and HERE, and switches to compilation
+   193                                          ; state.
+   194                                          defword ":",COLON
+    63                              <1> word_%2:
+    64 000000BF [B200]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 000000C1 01                  <1>  db %3+%%len
+    68 000000C2 3A                  <1>  db %1
+    69                              <1> %2:
+   195 000000C3 E8B700                          call token              ; parse word from input
+   196 000000C6 56                              push si
+   197 000000C7 89FE                            mov si,di               ; set parsed word as string copy source
+   198 000000C9 8B3E[9300]                      mov di,[HERE]           ; set current value of HERE as destination
+   199 000000CD A1[A300]                        mov ax,[LATEST]         ; get pointer to latest defined word
+   200 000000D0 893E[A300]                      mov [LATEST],di         ; update LATEST to new word being defined
+   201 000000D4 AB                              stosw                   ; link pointer
+   202 000000D5 88C8                            mov al,cl
+   203 000000D7 0C40                            or al,F_HIDDEN          ; hide new word while it's being defined
+   204 000000D9 AA                              stosb                   ; word length
+   205 000000DA F3A4                            rep movsb               ; word name
+   206 000000DC B8FF26                          mov ax,0x26ff
+   207 000000DF AB                              stosw                   ; compile near jump, absolute indirect...
+   208 000000E0 B8[FC00]                        mov ax,DOCOL.addr
+   209 000000E3 AB                              stosw                   ; ...to DOCOL
+   210 000000E4 893E[9300]                      mov [HERE],di           ; update HERE to next free position
+   211 000000E8 C606001001                      mov byte [STATE],1      ; switch to compilation state
+   212 000000ED 5E                              pop si
+   213 000000EE EB94                            NEXT
+   214                                  
+   215                                          ; DOCOL sets up and starts execution of a user-defined words.
+   216                                          ; Those differ from words defined in machine code by being
+   217                                          ; sequences of addresses to other words, so a bit of code is
+   218                                          ; needed to save the current value of SI (this Forth's instruction
+   219                                          ; pointer), and point it to the sequence of addresses that makes
+   220                                          ; up a word's body.
+   221                                          ;
+   222                                          ; DOCOL advances AX 4 bytes, and then moves that value to SI. When
+   223                                          ; DOCOL is jumped to, AX points to the code field of the word
+   224                                          ; about to be executed. The 4 bytes being skipped are the actual
+   225                                          ; jump instruction to DOCOL itself, inserted by the colon compiler
+   226                                          ; when it creates a new entry in the dictionary.
+   227                                  DOCOL:
+   228 000000F0 87E5                            xchg sp,bp              ; swap SP and BP, SP controls return stack
+   229 000000F2 56                              push si                 ; push current "instruction pointer"
+   230 000000F3 87E5                            xchg sp,bp              ; restore SP and BP
+   231 000000F5 83C004                          add ax,4                ; skip word's code field
+   232 000000F8 89C6                            mov si,ax               ; point "instruction pointer" to word body
+   233 000000FA EB88                            NEXT                    ; start executing the word
+   234                                  
+   235                                          ; The jump instruction inserted by the compiler is an indirect
+   236                                          ; jump, so it needs to read the location to jump to from another
+   237                                          ; memory location.
+   238 000000FC [F000]                  .addr:  dw DOCOL
+   239                                  
+   240                                          ; Semicolon is the only immediate primitive. It writes the address
+   241                                          ; of EXIT to the end of a new word definition, makes the word
+   242                                          ; visible in the dictionary, and switches back to interpretation
+   243                                          ; state.
+   244                                          defword ";",SEMICOLON,F_IMMEDIATE
+    63                              <1> word_%2:
+    64 000000FE [BF00]              <1>  dw link
+    65                              <1> %define link word_%2
+    66                              <1> %strlen %%len %1
+    67 00000100 81                  <1>  db %3+%%len
+    68 00000101 3B                  <1>  db %1
+    69                              <1> %2:
+   245 00000102 8B1E[A300]                      mov bx,[LATEST]
+   246 00000106 806702BF                        and byte [bx+2],~F_HIDDEN       ; reveal new word
+   247 0000010A C606001000                      mov byte [STATE],0      ; switch to interpretation state
+   248 0000010F B8[5B00]                        mov ax,EXIT             ; prepare to compile EXIT
+   249                                  compile:
+   250 00000112 8B3E[9300]                      mov di,[HERE]
+   251 00000116 AB                              stosw                   ; compile contents of AX to HERE
+   252 00000117 893E[9300]                      mov [HERE],di           ; advance HERE to next cell
+   253 0000011B E966FF                          NEXT
+   254                                  
+   255                                          ; Execution starts here.
+   256                                  start:
+   257 0000011E FC                              cld                     ; clear direction flag
+   258                                  
+   259                                          ; Set up segment registers to point to the same segment as CS.
+   260 0000011F 0E                              push cs
+   261 00000120 0E                              push cs
+   262 00000121 0E                              push cs
+   263 00000122 1F                              pop ds
+   264 00000123 07                              pop es
+   265 00000124 17                              pop ss
+   266                                  
+   267                                          ; Skip error signaling on initialization
+   268 00000125 EB0B                            jmp init
+   269                                  
+   270                                          ; Display a red '!!' to let the user know an error happened and the
+   271                                          ; interpreter is being reset
+   272                                  error:
+   273 00000127 B82109                          mov ax,0x0921           ; write '!'
+   274 0000012A BB0400                          mov bx,0x0004           ; black background, red text
+   275 0000012D B90200                          mov cx,2                ; twice
+   276 00000130 CD10                            int 0x10
+   277                                  
+   278                                          ; Initialize stack pointers, state, and terminal input buffer.
+   279                                  init:
+   280 00000132 BDFE76                          mov bp,RP0              ; BP is the return stack pointer
+   281 00000135 BCFEFF                          mov sp,SP0              ; SP is the data stack pointer
+   282                                  
+   283                                          ; Fill TIB with zeros, and set STATE and >IN to 0
+   284 00000138 B000                            mov al,0
+   285 0000013A B90410                          mov cx,STATE+4
+   286 0000013D BF0000                          mov di,TIB
+   287 00000140 F3AA                            rep stosb
+   288                                  
+   289                                          ; Enter the interpreter loop.
+   290                                          ;
+   291                                          ; Words are read one at time and searched for in the dictionary.
+   292                                          ; If a word is found in the dictionary, it is either interpreted
+   293                                          ; (i.e. executed) or compiled, depending on the current state and
+   294                                          ; the word's IMMEDIATE flag.
+   295                                          ;
+   296                                          ; When a word is not found, the state of the interpreter is reset:
+   297                                          ; the data and return stacks are cleared as well as the terminal
+   298                                          ; input buffer, and the interpreter goes into interpretation mode.
+   299                                  interpreter:
+   300 00000142 E83800                          call token              ; parse word from input
+   301 00000145 8B1E[A300]                      mov bx,[LATEST]         ; start searching for it in the dictionary
+   302 00000149 85DB                    .1:     test bx,bx              ; zero?
+   303 0000014B 74DA                            jz error                ; not found, reset interpreter state
+   304 0000014D 89DE                            mov si,bx
+   305 0000014F AD                              lodsw                   ; skip link
+   306 00000150 AC                              lodsb                   ; read flags+length
+   307 00000151 88C2                            mov dl,al               ; save those for later use
+   308 00000153 A840                            test al,F_HIDDEN        ; entry hidden?
+   309 00000155 750E                            jnz .2                  ; if so, skip it
+   310 00000157 241F                            and al,LENMASK          ; mask out flags
+   311 00000159 38C8                            cmp al,cl               ; same length?
+   312 0000015B 7508                            jne .2                  ; if not, skip entry
+   313 0000015D 51                              push cx
+   314 0000015E 57                              push di
+   315 0000015F F3A6                            repe cmpsb              ; compare strings
+   316 00000161 5F                              pop di
+   317 00000162 59                              pop cx
+   318 00000163 7404                            je .3                   ; if equal, search is over
+   319 00000165 8B1F                    .2:     mov bx,[bx]             ; skip to next entry
+   320 00000167 EBE0                            jmp .1                  ; try again
+   321 00000169 89F0                    .3:     mov ax,si               ; after comparison, SI points to code field
+   322 0000016B BE[7B01]                        mov si,.loop            ; set SI so NEXT loops back to interpreter
+   323                                          ; Decide whether to interpret or compile the word. The IMMEDIATE
+   324                                          ; flag is located in the most significant bit of the flags+length
+   325                                          ; byte. STATE can only be 0 or 1. When ORing those two, these are
+   326                                          ; the possibilities:
+   327                                          ;
+   328                                          ; IMMEDIATE     STATE         OR   ACTION
+   329                                          ;   0000000   0000000   00000000   Interpret
+   330                                          ;   0000000   0000001   00000001   Compile
+   331                                          ;   1000000   0000000   10000000   Interpret
+   332                                          ;   1000000   0000001   10000001   Interpret
+   333                                          ;
+   334                                          ; A word is only compiled when the result of that OR is 1.
+   335                                          ; Decrementing that result sets the zero flag for a conditional
+   336                                          ; jump.
+   337 0000016E 80E280                          and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
+   338 00000171 0A160010                        or dl,[STATE]           ; OR with state
+   339 00000175 FECA                            dec dl                  ; decrement
+   340 00000177 7499                            jz compile              ; if result is zero, compile
+   341 00000179 FFE0                            jmp ax                  ; otherwise, interpret (execute) the word
+   342 0000017B [4201]                  .loop:  dw interpreter
+   343                                  
+   344                                          ; Parse a word from the terminal input buffer and return its
+   345                                          ; address and length in DI and CX, respectively.
+   346                                          ;
+   347                                          ; If after skipping spaces a 0 is found, more input is read from
+   348                                          ; the keyboard into the terminal input buffer until return is
+   349                                          ; pressed, at which point execution jumps back to the beginning of
+   350                                          ; token so it can attempt to parse a word again.
+   351                                          ;
+   352                                          ; Before reading input from the keyboard, a CRLF is emitted so
+   353                                          ; the user can enter input on a fresh, blank line on the screen.
+   354                                  token:
+   355 0000017D 8B3E0210                        mov di,[TOIN]           ; starting at the current position in TIB
+   356 00000181 B9FFFF                          mov cx,-1               ; search "indefinitely"
+   357 00000184 B020                            mov al,32               ; for a character that's not a space
+   358 00000186 F3AE                            repe scasb
+   359 00000188 4F                              dec di                  ; result is one byte past found character
+   360 00000189 803D00                          cmp byte [di],0         ; found a 0?
+   361 0000018C 7410                            je .readline            ; if so, read more input
+   362 0000018E B9FFFF                          mov cx,-1               ; search "indefinitely" again
+   363 00000191 F2AE                            repne scasb             ; this time, for a space
+   364 00000193 4F                              dec di                  ; adjust DI again
+   365 00000194 893E0210                        mov [TOIN],di           ; update current position in TIB
+   366 00000198 F7D1                            not cx                  ; after ones' complement, CX=length+1
+   367 0000019A 49                              dec cx                  ; adjust CX to correct length
+   368 0000019B 29CF                            sub di,cx               ; point to start of parsed word
+   369 0000019D C3                              ret
+   370                                  .readline:
+   371 0000019E B00D                            mov al,13
+   372 000001A0 E83C00                          call writechar          ; CR
+   373 000001A3 B00A                            mov al,10
+   374 000001A5 E83700                          call writechar          ; LF
+   375 000001A8 BF0000                          mov di,TIB              ; read into TIB
+   376 000001AB B400                    .1:     mov ah,0                ; wait until a key is pressed
+   377 000001AD CD16                            int 0x16
+   378 000001AF 3C0D                            cmp al,13               ; return pressed?
+   379 000001B1 741D                            je .3                   ; if so, finish reading
+   380 000001B3 3C08                            cmp al,8                ; backspace pressed?
+   381 000001B5 7406                            je .2                   ; if so, erase character
+   382 000001B7 E82500                          call writechar          ; otherwise, write character to screen
+   383 000001BA AA                              stosb                   ; store character in TIB
+   384 000001BB EBEE                            jmp .1                  ; keep reading
+   385 000001BD 83FF00                  .2:     cmp di,TIB              ; start of TIB?
+   386 000001C0 74E9                            je .1                   ; if so, there's nothing to erase
+   387 000001C2 4F                              dec di                  ; erase character in TIB
+   388 000001C3 E81900                          call writechar          ; move cursor back one character
+   389 000001C6 B8200A                          mov ax,0x0a20           ; erase without moving cursor
+   390 000001C9 B90100                          mov cx,1
+   391 000001CC CD10                            int 0x10                ; (BH already set to 0 by writechar)
+   392 000001CE EBDB                            jmp .1                  ; keep reading
+   393 000001D0 B82000                  .3:     mov ax,0x0020
+   394 000001D3 AB                              stosw                   ; put final delimiter and 0 in TIB
+   395 000001D4 E80800                          call writechar          ; write a space between user input and
+   396                                                                  ; execution output
+   397 000001D7 C70602100000                    mov word [TOIN],0       ; point >IN to start of TIB
+   398 000001DD EB9E                            jmp token               ; try parsing a word again
+   399                                  
+   400                                          ; writechar writes a character to the screen. It uses INT 10/AH=0e
+   401                                          ; to perform teletype output, writing the character, updating the
+   402                                          ; cursor, and scrolling the screen, all in one go. Writing
+   403                                          ; backspace using the BIOS only moves the cursor backwards within
+   404                                          ; a line, but does not move it back to the previous line.
+   405                                          ; writechar addresses that.
+   406                                  writechar:
+   407 000001DF 50                              push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
+   408 000001E0 B700                            mov bh,0                ; video page 0 for all BIOS calls
+   409 000001E2 B403                            mov ah,3                ; get cursor position (DH=row, DL=column)
+   410 000001E4 CD10                            int 0x10
+   411 000001E6 58                              pop ax                  ; restore AX
+   412 000001E7 B40E                            mov ah,0x0e             ; teletype output
+   413 000001E9 B307                            mov bl,0x7              ; black background, light grey text
+   414 000001EB CD10                            int 0x10
+   415 000001ED 3C08                            cmp al,8                ; backspace?
+   416 000001EF 750C                            jne .1                  ; if not, nothing else to do
+   417 000001F1 84D2                            test dl,dl              ; was cursor in first column?
+   418 000001F3 7508                            jnz .1                  ; if not, nothing else to do
+   419 000001F5 B402                            mov ah,2                ; move cursor
+   420 000001F7 B24F                            mov dl,79               ; to last column
+   421 000001F9 FECE                            dec dh                  ; of previous row
+   422 000001FB CD10                            int 0x10
+   423 000001FD C3                      .1:     ret
+   424                                  
+   425                                          times 510-($-$$) db 0
+   426 000001FE 55AA                            db 0x55, 0xaa
+   427                                  
+   428                                          ; New dictionary entries will be written starting here.
+   429                                  start_HERE:
