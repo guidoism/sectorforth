@@ -1,37 +1,37 @@
 0000 EA[1E01]5000        jmp 0x0050:start
                         ╭────────┬────────────
-0005 0000               │0000    │(addr -- x
-0007 01                 │ 1      │Fetch memory at addr
-0008 40                 │"@"   
+0005 0000               │0000    │@ - Fetch memory at addr
+0007 01                 │ 1      │(addr -- x)
+0008 40                 │"@"      
 0009 5B                 │pop bx
 000A FF37               │push word [bx]
 000C EB76               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-000E [0500]             │        │(x addr --)
-0010 01                 │ 1      │Store x at addr
+000E [0500]             │        │! - Store x at addr
+0010 01                 │ 1      │(x addr --)
 0011 21                 │"!"
 0012 5B                 │pop bx
 0013 8F07               │pop word [bx]
 0015 EB6D               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0017 [0E00]             │        │
-0019 03                 │ 3      │
+0017 [0E00]             │        │sp@ - Get current data stack pointer
+0019 03                 │ 3      │(-- addr)       
 001A 737040             │"sp@"
 001D 54                 │push sp
 001E EB64               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0020 [1700]             │        │
-0022 03                 │ 3      │
+0020 [1700]             │        │Get current return stack pointer
+0022 03                 │ 3      │(-- addr)       
 0023 727040             │"rp@"
 0026 55                 │push bp
 0027 EB5B               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0029 [2000]             │        │
-002B 02                 │ 2      │
+0029 [2000]             │        │-1 if top of stack is 0, 0 otherwise
+002B 02                 │ 2      │(x -- f)        
 002C 303D               │"0="
 002E 58                 │pop ax
 002F 85C0               │test ax,ax
@@ -42,8 +42,8 @@
 0037 EB4B               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0039 [2900]             │        │
-003B 01                 │ 1      │
+0039 [2900]             │        │Add the two values at the top of the stack
+003B 01                 │ 1      │(x1 x2 -- n)    
 003C 2B                 │"+"
 003D 5B                 │pop bx
 003E 58                 │pop ax
@@ -52,8 +52,8 @@
 0042 EB40               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0044 [3900]             │        │
-0046 04                 │ 4      │
+0044 [3900]             │        │NAND the two values at the top of the stack
+0046 04                 │ 4      │(x1 x2 -- n)
 0047 6E616E64           │"nand"
 004B 5B                 │pop bx
 004C 58                 │pop ax
@@ -63,8 +63,8 @@
 0052 EB30               │NEXT
                         ╰────────────────────
                         ╭────────┬────────────
-0054 [4400]             │        │
-0056 04                 │ 4      │
+0054 [4400]             │        │Resume execution at address at the top of the return stack
+0056 04                 │ 4      │(r:addr --)
 0057 65786974           │"exit"
 005B 87E5               │xchg sp,bp              ; swap SP and BP, SP controls return stack
 005D 5E                 │pop si                  ; pop address to next word
