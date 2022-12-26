@@ -1,248 +1,284 @@
-00000000 EA[1E01]5000        jmp 0x0050:start
-                            ╭────────────────────
-00000005 0000               │dw link
-00000007 01                 │db %3+%%len
-00000008 40                 │db %1
-00000009 5B                 │pop bx
-0000000A FF37               │push word [bx]
-0000000C EB76               │NEXT
-                            ╰────────────────────
-0000000E [0500]              dw link
-00000010 01                  db %3+%%len
-00000011 21                  db %1
-00000012 5B                  pop bx
-00000013 8F07                pop word [bx]
-00000015 EB6D                NEXT
-00000017 [0E00]              dw link
-00000019 03                  db %3+%%len
-0000001A 737040              db %1
-0000001D 54                  push sp
-0000001E EB64                NEXT
-00000020 [1700]              dw link
-00000022 03                  db %3+%%len
-00000023 727040              db %1
-00000026 55                  push bp
-00000027 EB5B                NEXT
-00000029 [2000]              dw link
-0000002B 02                  db %3+%%len
-0000002C 303D                db %1
-0000002E 58                  pop ax
-0000002F 85C0                test ax,ax
-00000031 0F95C0              setnz al                ; AL=0 if ZF=1, else AL=1
-00000034 48                  dec ax                  ; AL=ff if AL=0, else AL=0
-00000035 98                  cbw                     ; AH=AL
-00000036 50                  push ax
-00000037 EB4B                NEXT
-00000039 [2900]              dw link
-0000003B 01                  db %3+%%len
-0000003C 2B                  db %1
-0000003D 5B                  pop bx
-0000003E 58                  pop ax
-0000003F 01D8                add ax,bx
-00000041 50                  push ax
-00000042 EB40                NEXT
-00000044 [3900]              dw link
-00000046 04                  db %3+%%len
-00000047 6E616E64            db %1
-0000004B 5B                  pop bx
-0000004C 58                  pop ax
-0000004D 21D8                and ax,bx
-0000004F F7D0                not ax
-00000051 50                  push ax
-00000052 EB30                NEXT
-00000054 [4400]              dw link
-00000056 04                  db %3+%%len
-00000057 65786974            db %1
-0000005B 87E5                xchg sp,bp              ; swap SP and BP, SP controls return stack
-0000005D 5E                  pop si                  ; pop address to next word
-0000005E 87E5                xchg sp,bp              ; restore SP and BP
-00000060 EB22                NEXT
-00000062 [5400]              dw link
-00000064 03                  db %3+%%len
-00000065 746962              db %1
-00000068 6A00                push word TIB
-0000006A EB18                NEXT
-0000006C [6200]              dw link
-0000006E 05                  db %3+%%len
-0000006F 7374617465          db %1
-00000074 680010              push word STATE
-00000077 EB0B                NEXT
-00000079 [6C00]              dw link
-0000007B 03                  db %3+%%len
-0000007C 3E696E              db %1
-0000007F 680210              push word TOIN
-00000082 EB00                NEXT
-00000084 AD                  lodsw                   ; load next word's address into AX
-00000085 FFE0                jmp ax                  ; jump directly to it
-00000087 [7900]              dw link
-00000089 04                  db %3+%%len
-0000008A 68657265            db %1
-0000008E 68[9300]            push word HERE
-00000091 EBF1                NEXT
-00000093 [0002]              dw start_HERE
-00000095 [8700]              dw link
-00000097 06                  db %3+%%len
-00000098 6C6174657374        db %1
-0000009E 68[A300]            push word LATEST
-000000A1 EBE1                NEXT
-000000A3 [FE00]              dw word_SEMICOLON       ; initialized to last word in dictionary
-000000A5 [9500]              dw link
-000000A7 03                  db %3+%%len
-000000A8 6B6579              db %1
-000000AB B400                mov ah,0
-000000AD CD16                int 0x16
-000000AF 50                  push ax
-000000B0 EBD2                NEXT
-000000B2 [A500]              dw link
-000000B4 04                  db %3+%%len
-000000B5 656D6974            db %1
-000000B9 58                  pop ax
-000000BA E82201              call writechar
-000000BD EBC5                NEXT
-000000BF [B200]              dw link
-000000C1 01                  db %3+%%len
-000000C2 3A                  db %1
-000000C3 E8B700              call token              ; parse word from input
-000000C6 56                  push si
-000000C7 89FE                mov si,di               ; set parsed word as string copy source
-000000C9 8B3E[9300]          mov di,[HERE]           ; set current value of HERE as destination
-000000CD A1[A300]            mov ax,[LATEST]         ; get pointer to latest defined word
-000000D0 893E[A300]          mov [LATEST],di         ; update LATEST to new word being defined
-000000D4 AB                  stosw                   ; link pointer
-000000D5 88C8                mov al,cl
-000000D7 0C40                or al,F_HIDDEN          ; hide new word while it's being defined
-000000D9 AA                  stosb                   ; word length
-000000DA F3A4                rep movsb               ; word name
-000000DC B8FF26              mov ax,0x26ff
-000000DF AB                  stosw                   ; compile near jump, absolute indirect...
-000000E0 B8[FC00]            mov ax,DOCOL.addr
-000000E3 AB                  stosw                   ; ...to DOCOL
-000000E4 893E[9300]          mov [HERE],di           ; update HERE to next free position
-000000E8 C606001001          mov byte [STATE],1      ; switch to compilation state
-000000ED 5E                  pop si
-000000EE EB94                NEXT
-000000F0 87E5                xchg sp,bp              ; swap SP and BP, SP controls return stack
-000000F2 56                  push si                 ; push current "instruction pointer"
-000000F3 87E5                xchg sp,bp              ; restore SP and BP
-000000F5 83C004              add ax,4                ; skip word's code field
-000000F8 89C6                mov si,ax               ; point "instruction pointer" to word body
-000000FA EB88                NEXT                    ; start executing the word
-000000FC [F000]              dw DOCOL
-000000FE [BF00]              dw link
-00000100 81                  db %3+%%len
-00000101 3B                  db %1
-00000102 8B1E[A300]          mov bx,[LATEST]
-00000106 806702BF            and byte [bx+2],~F_HIDDEN       ; reveal new word
-0000010A C606001000          mov byte [STATE],0      ; switch to interpretation state
-0000010F B8[5B00]            mov ax,EXIT             ; prepare to compile EXIT
-00000112 8B3E[9300]          mov di,[HERE]
-00000116 AB                  stosw                   ; compile contents of AX to HERE
-00000117 893E[9300]          mov [HERE],di           ; advance HERE to next cell
-0000011B E966FF              NEXT
-0000011E FC                  cld                     ; clear direction flag
-0000011F 0E                  push cs
-00000120 0E                  push cs
-00000121 0E                  push cs
-00000122 1F                  pop ds
-00000123 07                  pop es
-00000124 17                  pop ss
-00000125 EB0B                jmp init
-00000127 B82109              mov ax,0x0921           ; write '!'
-0000012A BB0400              mov bx,0x0004           ; black background, red text
-0000012D B90200              mov cx,2                ; twice
-00000130 CD10                int 0x10
-00000132 BDFE76              mov bp,RP0              ; BP is the return stack pointer
-00000135 BCFEFF              mov sp,SP0              ; SP is the data stack pointer
-00000138 B000                mov al,0
-0000013A B90410              mov cx,STATE+4
-0000013D BF0000              mov di,TIB
-00000140 F3AA                rep stosb
-00000142 E83800              call token              ; parse word from input
-00000145 8B1E[A300]          mov bx,[LATEST]         ; start searching for it in the dictionary
-00000149 85DB            .1: test bx,bx              ; zero?
-0000014B 74DA                jz error                ; not found, reset interpreter state
-0000014D 89DE                mov si,bx
-0000014F AD                  lodsw                   ; skip link
-00000150 AC                  lodsb                   ; read flags+length
-00000151 88C2                mov dl,al               ; save those for later use
-00000153 A840                test al,F_HIDDEN        ; entry hidden?
-00000155 750E                jnz .2                  ; if so, skip it
-00000157 241F                and al,LENMASK          ; mask out flags
-00000159 38C8                cmp al,cl               ; same length?
-0000015B 7508                jne .2                  ; if not, skip entry
-0000015D 51                  push cx
-0000015E 57                  push di
-0000015F F3A6                repe cmpsb              ; compare strings
-00000161 5F                  pop di
-00000162 59                  pop cx
-00000163 7404                je .3                   ; if equal, search is over
-00000165 8B1F            .2: mov bx,[bx]             ; skip to next entry
-00000167 EBE0                jmp .1                  ; try again
-00000169 89F0            .3: mov ax,si               ; after comparison, SI points to code field
-0000016B BE[7B01]            mov si,.loop            ; set SI so NEXT loops back to interpreter
-0000016E 80E280              and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
-00000171 0A160010            or dl,[STATE]           ; OR with state
-00000175 FECA                dec dl                  ; decrement
-00000177 7499                jz compile              ; if result is zero, compile
-00000179 FFE0                jmp ax                  ; otherwise, interpret (execute) the word
-0000017B [4201]       .loop: dw interpreter
-0000017D 8B3E0210            mov di,[TOIN]           ; starting at the current position in TIB
-00000181 B9FFFF              mov cx,-1               ; search "indefinitely"
-00000184 B020                mov al,32               ; for a character that's not a space
-00000186 F3AE                repe scasb
-00000188 4F                  dec di                  ; result is one byte past found character
-00000189 803D00              cmp byte [di],0         ; found a 0?
-0000018C 7410                je .readline            ; if so, read more input
-0000018E B9FFFF              mov cx,-1               ; search "indefinitely" again
-00000191 F2AE                repne scasb             ; this time, for a space
-00000193 4F                  dec di                  ; adjust DI again
-00000194 893E0210            mov [TOIN],di           ; update current position in TIB
-00000198 F7D1                not cx                  ; after ones' complement, CX=length+1
-0000019A 49                  dec cx                  ; adjust CX to correct length
-0000019B 29CF                sub di,cx               ; point to start of parsed word
-0000019D C3                  ret
-0000019E B00D                mov al,13
-000001A0 E83C00              call writechar          ; CR
-000001A3 B00A                mov al,10
-000001A5 E83700              call writechar          ; LF
-000001A8 BF0000              mov di,TIB              ; read into TIB
-000001AB B400            .1: mov ah,0                ; wait until a key is pressed
-000001AD CD16                int 0x16
-000001AF 3C0D                cmp al,13               ; return pressed?
-000001B1 741D                je .3                   ; if so, finish reading
-000001B3 3C08                cmp al,8                ; backspace pressed?
-000001B5 7406                je .2                   ; if so, erase character
-000001B7 E82500              call writechar          ; otherwise, write character to screen
-000001BA AA                  stosb                   ; store character in TIB
-000001BB EBEE                jmp .1                  ; keep reading
-000001BD 83FF00          .2: cmp di,TIB              ; start of TIB?
-000001C0 74E9                je .1                   ; if so, there's nothing to erase
-000001C2 4F                  dec di                  ; erase character in TIB
-000001C3 E81900              call writechar          ; move cursor back one character
-000001C6 B8200A              mov ax,0x0a20           ; erase without moving cursor
-000001C9 B90100              mov cx,1
-000001CC CD10                int 0x10                ; (BH already set to 0 by writechar)
-000001CE EBDB                jmp .1                  ; keep reading
-000001D0 B82000          .3: mov ax,0x0020
-000001D3 AB                  stosw                   ; put final delimiter and 0 in TIB
-000001D4 E80800              call writechar          ; write a space between user input and
-000001D7 C70602100000        mov word [TOIN],0       ; point >IN to start of TIB
-000001DD EB9E                jmp token               ; try parsing a word again
-000001DF 50                  push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
-000001E0 B700                mov bh,0                ; video page 0 for all BIOS calls
-000001E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
-000001E4 CD10                int 0x10
-000001E6 58                  pop ax                  ; restore AX
-000001E7 B40E                mov ah,0x0e             ; teletype output
-000001E9 B307                mov bl,0x7              ; black background, light grey text
-000001EB CD10                int 0x10
-000001ED 3C08                cmp al,8                ; backspace?
-000001EF 750C                jne .1                  ; if not, nothing else to do
-000001F1 84D2                test dl,dl              ; was cursor in first column?
-000001F3 7508                jnz .1                  ; if not, nothing else to do
-000001F5 B402                mov ah,2                ; move cursor
-000001F7 B24F                mov dl,79               ; to last column
-000001F9 FECE                dec dh                  ; of previous row
-000001FB CD10                int 0x10
-000001FD C3              .1: ret
-000001FE 55AA                db 0x55, 0xaa
+0000 EA[1E01]5000        jmp 0x0050:start
+                        ╭────────────────────
+0005 0000               │link
+0007 01                 │ 1          ; length
+0008 40                 │"@"         ; name
+0009 5B                 │pop bx
+000A FF37               │push word [bx]
+000C EB76               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+000E [0500]             │dw link
+0010 01                 │db %3+%%len
+0011 21                 │db %1
+0012 5B                 │pop bx
+0013 8F07               │pop word [bx]
+0015 EB6D               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0017 [0E00]             │dw link
+0019 03                 │db %3+%%len
+001A 737040             │db %1
+001D 54                 │push sp
+001E EB64               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0020 [1700]             │dw link
+0022 03                 │db %3+%%len
+0023 727040             │db %1
+0026 55                 │push bp
+0027 EB5B               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0029 [2000]             │dw link
+002B 02                 │db %3+%%len
+002C 303D               │db %1
+002E 58                 │pop ax
+002F 85C0               │test ax,ax
+0031 0F95C0             │setnz al                ; AL=0 if ZF=1, else AL=1
+0034 48                 │dec ax                  ; AL=ff if AL=0, else AL=0
+0035 98                 │cbw                     ; AH=AL
+0036 50                 │push ax
+0037 EB4B               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0039 [2900]             │dw link
+003B 01                 │db %3+%%len
+003C 2B                 │db %1
+003D 5B                 │pop bx
+003E 58                 │pop ax
+003F 01D8               │add ax,bx
+0041 50                 │push ax
+0042 EB40               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0044 [3900]             │dw link
+0046 04                 │db %3+%%len
+0047 6E616E64           │db %1
+004B 5B                 │pop bx
+004C 58                 │pop ax
+004D 21D8               │and ax,bx
+004F F7D0               │not ax
+0051 50                 │push ax
+0052 EB30               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0054 [4400]             │dw link
+0056 04                 │db %3+%%len
+0057 65786974           │db %1
+005B 87E5               │xchg sp,bp              ; swap SP and BP, SP controls return stack
+005D 5E                 │pop si                  ; pop address to next word
+005E 87E5               │xchg sp,bp              ; restore SP and BP
+0060 EB22               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0062 [5400]             │dw link
+0064 03                 │db %3+%%len
+0065 746962             │db %1
+0068 6A00               │push word TIB
+006A EB18               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+006C [6200]             │dw link
+006E 05                 │db %3+%%len
+006F 7374617465         │db %1
+0074 680010             │push word STATE
+0077 EB0B               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0079 [6C00]             │dw link
+007B 03                 │db %3+%%len
+007C 3E696E             │db %1
+007F 680210             │push word TOIN
+0082 EB00               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+0084 AD                  lodsw                   ; load next word's address into AX
+0085 FFE0                jmp ax                  ; jump directly to it
+0087 [7900]              dw link
+0089 04                  db %3+%%len
+008A 68657265            db %1
+008E 68[9300]            push word HERE
+0091 EBF1                NEXT
+                        ╰────────────────────
+0093 [0002]              dw start_HERE
+                        ╭────────────────────
+0095 [8700]             │dw link
+0097 06                 │db %3+%%len
+0098 6C6174657374       │db %1
+009E 68[A300]           │push word LATEST
+00A1 EBE1               │NEXT
+                        ╰────────────────────
+00A3 [FE00]              dw word_SEMICOLON       ; initialized to last word in dictionary
+                        ╭────────────────────
+00A5 [9500]             │dw link
+00A7 03                 │db %3+%%len
+00A8 6B6579             │db %1
+00AB B400               │mov ah,0
+00AD CD16               │int 0x16
+00AF 50                 │push ax
+00B0 EBD2               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+00B2 [A500]             │dw link
+00B4 04                 │db %3+%%len
+00B5 656D6974           │db %1
+00B9 58                 │pop ax
+00BA E82201             │call writechar
+00BD EBC5               │NEXT
+                        ╰────────────────────
+                        ╭────────────────────
+00BF [B200]             │dw link
+00C1 01                 │db %3+%%len
+00C2 3A                 │db %1
+00C3 E8B700             │call token              ; parse word from input
+00C6 56                 │push si
+00C7 89FE               │mov si,di               ; set parsed word as string copy source
+00C9 8B3E[9300]         │mov di,[HERE]           ; set current value of HERE as destination
+00CD A1[A300]           │mov ax,[LATEST]         ; get pointer to latest defined word
+00D0 893E[A300]         │mov [LATEST],di         ; update LATEST to new word being defined
+00D4 AB                 │stosw                   ; link pointer
+00D5 88C8               │mov al,cl
+00D7 0C40               │or al,F_HIDDEN          ; hide new word while it's being defined
+00D9 AA                 │stosb                   ; word length
+00DA F3A4               │rep movsb               ; word name
+00DC B8FF26             │mov ax,0x26ff
+00DF AB                 │stosw                   ; compile near jump, absolute indirect...
+00E0 B8[FC00]           │mov ax,DOCOL.addr
+00E3 AB                 │stosw                   ; ...to DOCOL
+00E4 893E[9300]         │mov [HERE],di           ; update HERE to next free position
+00E8 C606001001         │mov byte [STATE],1      ; switch to compilation state
+00ED 5E                 │pop si
+00EE EB94               │NEXT
+                        ╰────────────────────
+
+00F0 87E5                xchg sp,bp              ; swap SP and BP, SP controls return stack
+00F2 56                  push si                 ; push current "instruction pointer"
+00F3 87E5                xchg sp,bp              ; restore SP and BP
+00F5 83C004              add ax,4                ; skip word's code field
+00F8 89C6                mov si,ax               ; point "instruction pointer" to word body
+00FA EB88                NEXT                    ; start executing the word
+
+00FC [F000]              dw DOCOL
+
+                        ╭────────────────────
+00FE [BF00]             │dw link
+0100 81                 │db %3+%%len
+0101 3B                 │db %1
+0102 8B1E[A300]         │mov bx,[LATEST]
+0106 806702BF           │and byte [bx+2],~F_HIDDEN       ; reveal new word
+010A C606001000         │mov byte [STATE],0      ; switch to interpretation state
+010F B8[5B00]           │mov ax,EXIT             ; prepare to compile EXIT
+0112 8B3E[9300]         │mov di,[HERE]
+0116 AB                 │stosw                   ; compile contents of AX to HERE
+0117 893E[9300]         │mov [HERE],di           ; advance HERE to next cell
+011B E966FF             │NEXT
+                        ╰────────────────────
+                            
+011E FC                  cld                     ; clear direction flag
+011F 0E                  push cs
+0120 0E                  push cs
+0121 0E                  push cs
+0122 1F                  pop ds
+0123 07                  pop es
+0124 17                  pop ss
+0125 EB0B                jmp init
+0127 B82109              mov ax,0x0921           ; write '!'
+012A BB0400              mov bx,0x0004           ; black background, red text
+012D B90200              mov cx,2                ; twice
+0130 CD10                int 0x10
+0132 BDFE76              mov bp,RP0              ; BP is the return stack pointer
+0135 BCFEFF              mov sp,SP0              ; SP is the data stack pointer
+0138 B000                mov al,0
+013A B90410              mov cx,STATE+4
+013D BF0000              mov di,TIB
+0140 F3AA                rep stosb
+0142 E83800              call token              ; parse word from input
+0145 8B1E[A300]          mov bx,[LATEST]         ; start searching for it in the dictionary
+0149 85DB            .1: test bx,bx              ; zero?
+014B 74DA                jz error                ; not found, reset interpreter state
+014D 89DE                mov si,bx
+014F AD                  lodsw                   ; skip link
+0150 AC                  lodsb                   ; read flags+length
+0151 88C2                mov dl,al               ; save those for later use
+0153 A840                test al,F_HIDDEN        ; entry hidden?
+0155 750E                jnz .2                  ; if so, skip it
+0157 241F                and al,LENMASK          ; mask out flags
+0159 38C8                cmp al,cl               ; same length?
+015B 7508                jne .2                  ; if not, skip entry
+015D 51                  push cx
+015E 57                  push di
+015F F3A6                repe cmpsb              ; compare strings
+0161 5F                  pop di
+0162 59                  pop cx
+0163 7404                je .3                   ; if equal, search is over
+0165 8B1F            .2: mov bx,[bx]             ; skip to next entry
+0167 EBE0                jmp .1                  ; try again
+0169 89F0            .3: mov ax,si               ; after comparison, SI points to code field
+016B BE[7B01]            mov si,.loop            ; set SI so NEXT loops back to interpreter
+016E 80E280              and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
+0171 0A160010            or dl,[STATE]           ; OR with state
+0175 FECA                dec dl                  ; decrement
+0177 7499                jz compile              ; if result is zero, compile
+0179 FFE0                jmp ax                  ; otherwise, interpret (execute) the word
+017B [4201]       .loop: dw interpreter
+017D 8B3E0210            mov di,[TOIN]           ; starting at the current position in TIB
+0181 B9FFFF              mov cx,-1               ; search "indefinitely"
+0184 B020                mov al,32               ; for a character that's not a space
+0186 F3AE                repe scasb
+0188 4F                  dec di                  ; result is one byte past found character
+0189 803D00              cmp byte [di],0         ; found a 0?
+018C 7410                je .readline            ; if so, read more input
+018E B9FFFF              mov cx,-1               ; search "indefinitely" again
+0191 F2AE                repne scasb             ; this time, for a space
+0193 4F                  dec di                  ; adjust DI again
+0194 893E0210            mov [TOIN],di           ; update current position in TIB
+0198 F7D1                not cx                  ; after ones' complement, CX=length+1
+019A 49                  dec cx                  ; adjust CX to correct length
+019B 29CF                sub di,cx               ; point to start of parsed word
+019D C3                  ret
+019E B00D                mov al,13
+01A0 E83C00              call writechar          ; CR
+01A3 B00A                mov al,10
+01A5 E83700              call writechar          ; LF
+01A8 BF0000              mov di,TIB              ; read into TIB
+01AB B400            .1: mov ah,0                ; wait until a key is pressed
+01AD CD16                int 0x16
+01AF 3C0D                cmp al,13               ; return pressed?
+01B1 741D                je .3                   ; if so, finish reading
+01B3 3C08                cmp al,8                ; backspace pressed?
+01B5 7406                je .2                   ; if so, erase character
+01B7 E82500              call writechar          ; otherwise, write character to screen
+01BA AA                  stosb                   ; store character in TIB
+01BB EBEE                jmp .1                  ; keep reading
+01BD 83FF00          .2: cmp di,TIB              ; start of TIB?
+01C0 74E9                je .1                   ; if so, there's nothing to erase
+01C2 4F                  dec di                  ; erase character in TIB
+01C3 E81900              call writechar          ; move cursor back one character
+01C6 B8200A              mov ax,0x0a20           ; erase without moving cursor
+01C9 B90100              mov cx,1
+01CC CD10                int 0x10                ; (BH already set to 0 by writechar)
+01CE EBDB                jmp .1                  ; keep reading
+01D0 B82000          .3: mov ax,0x0020
+01D3 AB                  stosw                   ; put final delimiter and 0 in TIB
+01D4 E80800              call writechar          ; write a space between user input and
+01D7 C70602100000        mov word [TOIN],0       ; point >IN to start of TIB
+01DD EB9E                jmp token               ; try parsing a word again
+01DF 50                  push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
+01E0 B700                mov bh,0                ; video page 0 for all BIOS calls
+01E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
+01E4 CD10                int 0x10
+01E6 58                  pop ax                  ; restore AX
+01E7 B40E                mov ah,0x0e             ; teletype output
+01E9 B307                mov bl,0x7              ; black background, light grey text
+01EB CD10                int 0x10
+01ED 3C08                cmp al,8                ; backspace?
+01EF 750C                jne .1                  ; if not, nothing else to do
+01F1 84D2                test dl,dl              ; was cursor in first column?
+01F3 7508                jnz .1                  ; if not, nothing else to do
+01F5 B402                mov ah,2                ; move cursor
+01F7 B24F                mov dl,79               ; to last column
+01F9 FECE                dec dh                  ; of previous row
+01FB CD10                int 0x10
+01FD C3              .1: ret
+01FE 55AA                db 0x55, 0xaa
