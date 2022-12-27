@@ -172,7 +172,7 @@
                             │
          C O M P I L E      │
                             │
-    0112 8B3E[9300]   ┌────►│mov di,[HERE]           
+    0112 8B3E[9300]   ┌────▶│mov di,[HERE]           
     0116 AB           │     │stosw                   ; compile contents of AX to HERE
     0117 893E[9300]   │     │mov [HERE],di           ; advance HERE to next cell
     011B E966FF       │     │NEXT
@@ -192,14 +192,14 @@
                       │    │
          E R R O R    │    │
                       │    │
-    0127 B82109       │   ┌│►mov ax,0x0921           ; write '!'
+    0127 B82109       │   ┌│▶mov ax,0x0921           ; write '!'
     012A BB0400       │   ││ mov bx,0x0004           ; black background, red text
     012D B90200       │   ││ mov cx,2                ; twice
     0130 CD10         │   ││ int 0x10
                       │   ││
          I N I T      │   ││
                       │   ││
-    0132 BDFE76       │   │└►mov bp,RP0              ; BP is the return stack pointer
+    0132 BDFE76       │   │└▶mov bp,RP0              ; BP is the return stack pointer
     0135 BCFEFF       │   │  mov sp,SP0              ; SP is the data stack pointer
     0138 B000         │   │  mov al,0                ; Fill TIB with zeros, and set STATE
     013A B90410       │   │  mov cx,STATE+4          ;   and >IN to 0
@@ -217,7 +217,7 @@
                       │   │    
     0142 E83800       │┌──│──call token              ; parse word from input
     0145 8B1E[A300]   ││  │  mov bx,[LATEST]         ; start searching for it in the dictionary
-    0149 85DB         ││┌─│─►test bx,bx              ; zero?  (.1:)
+    0149 85DB         ││┌─│─▶test bx,bx              ; zero?  (.1:)
     014B 74DA         │││ └──jz error                ; not found, reset interpreter state
     014D 89DE         │││    mov si,bx
     014F AD           │││    lodsw                   ; skip link
@@ -234,9 +234,9 @@
     0161 5F           │││ │  pop di
     0162 59           │││ │  pop cx
     0163 7404         │││┌│──je .3                   ; if equal, search is over
-    0165 8B1F         ││││└─►mov bx,[bx]             ; skip to next entry (.2:)
+    0165 8B1F         ││││└─▶mov bx,[bx]             ; skip to next entry (.2:)
     0167 EBE0         ││└│───jmp .1                  ; try again
-    0169 89F0         ││ └──►mov ax,si               ; after comparison, SI points to code field (.3:)
+    0169 89F0         ││ └──▶mov ax,si               ; after comparison, SI points to code field (.3:)
     016B BE[7B01]     ││     mov si,.loop            ; set SI so NEXT loops back to interpreter
                       ││     
                       ││     ; Decide whether to interpret or compile the word. The IMMEDIATE
@@ -263,7 +263,7 @@
                        │     ; Before reading input from the keyboard, a CRLF is emitted so
                        │     ; the user can enter input on a fresh, blank line on the screen.
                        │     
-    017D 8B3E0210      ├────►mov di,[TOIN]           ; starting at the current position in TIB
+    017D 8B3E0210      ├────▶mov di,[TOIN]           ; starting at the current position in TIB
     0181 B9FFFF        │     mov cx,-1               ; search "indefinitely"
     0184 B020          │     mov al,32               ; for a character that's not a space
     0186 F3AE          │     repe scasb
@@ -281,12 +281,12 @@
                        │   │ 
          R E A D L I N E   │ 
                        │   │   
-    019E B00D          │   └►mov al,13
+    019E B00D          │   └▶mov al,13
     01A0 E83C00        │┌────call writechar          ; CR
     01A3 B00A          ││    mov al,10
     01A5 E83700        │├────call writechar          ; LF
     01A8 BF0000        ││    mov di,TIB              ; read into TIB
-    01AB B400          ││ ┌─►mov ah,0                ; wait until a key is pressed (.1:)
+    01AB B400          ││ ┌─▶mov ah,0                ; wait until a key is pressed (.1:)
     01AD CD16          ││ │  int 0x16
     01AF 3C0D          ││ │  cmp al,13               ; return pressed?
     01B1 741D          ││┌│──je .3                   ; if so, finish reading
@@ -295,7 +295,7 @@
     01B7 E82500        │├│││─call writechar          ; otherwise, write character to screen
     01BA AA            │││││ stosb                   ; store character in TIB
     01BB EBEE          │││├│─jmp .1                  ; keep reading
-    01BD 83FF00        ││││└►cmp di,TIB              ; start of TIB? (.2:)
+    01BD 83FF00        ││││└▶cmp di,TIB              ; start of TIB? (.2:)
     01C0 74E9          │││├──je .1                   ; if so, there's nothing to erase
     01C2 4F            ││││  dec di                  ; erase character in TIB
     01C3 E81900        │├││──call writechar          ; move cursor back one character
@@ -303,7 +303,7 @@
     01C9 B90100        ││││  mov cx,1
     01CC CD10          ││││  int 0x10                ; (BH already set to 0 by writechar)
     01CE EBDB          │││└──jmp .1                  ; keep reading
-    01D0 B82000        ││└──►mov ax,0x0020           ; (.3:)
+    01D0 B82000        ││└──▶mov ax,0x0020           ; (.3:)
     01D3 AB            ││    stosw                   ; put final delimiter and 0 in TIB
     01D4 E80800        │├────call writechar          ; write a space between user input and
     01D7 C70602100000  ││    mov word [TOIN],0       ; point >IN to start of TIB
@@ -317,7 +317,7 @@
                         │    ; a line, but does not move it back to the previous line.
                         │    ; writechar addresses that.
                         │    
-    01DF 50             └───►push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
+    01DF 50             └───▶push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
     01E0 B700                mov bh,0                ; video page 0 for all BIOS calls
     01E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
     01E4 CD10                int 0x10
@@ -333,6 +333,6 @@
     01F7 B24F             │  mov dl,79               ; to last column
     01F9 FECE             │  dec dh                  ; of previous row
     01FB CD10             │  int 0x10
-    01FD C3               └─►ret                     ; (.1:)
+    01FD C3               └─▶ret                     ; (.1:)
     
     01FE 55AA                db 0x55, 0xaa
