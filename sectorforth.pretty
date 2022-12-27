@@ -206,7 +206,7 @@
 013D BF0000       │   │  mov di,TIB
 0140 F3AA         │   │  rep stosb
                   │   │    
-     I N T E R P  │   │  ; Words are read one at time and searched for in the dictionary.
+     I N T E R P R│E T│  ; Words are read one at time and searched for in the dictionary.
                   │   │  ; If a word is found in the dictionary, it is either interpreted
                   │   │  ; (i.e. executed) or compiled, depending on the current state and
                   │   │  ; the word's IMMEDIATE flag.
@@ -282,42 +282,42 @@
      R E A D L I N E   │ 
                    │   │   
 019E B00D          │   └►mov al,13
-01A0 E83C00        │     call writechar          ; CR
-01A3 B00A          │     mov al,10
-01A5 E83700        │     call writechar          ; LF
-01A8 BF0000        │     mov di,TIB              ; read into TIB
-01AB B400          │  ┌─►mov ah,0                ; wait until a key is pressed (.1:)
-01AD CD16          │  │  int 0x16
-01AF 3C0D          │  │  cmp al,13               ; return pressed?
-01B1 741D          │ ┌│──je .3                   ; if so, finish reading
-01B3 3C08          │ ││  cmp al,8                ; backspace pressed?
-01B5 7406          │ ││┌─je .2                   ; if so, erase character
-01B7 E82500        │ │││ call writechar          ; otherwise, write character to screen
-01BA AA            │ │││ stosb                   ; store character in TIB
-01BB EBEE          │ │├│─jmp .1                  ; keep reading
-01BD 83FF00        │ ││└►cmp di,TIB              ; start of TIB? (.2:)
-01C0 74E9          │ │├──je .1                   ; if so, there's nothing to erase
-01C2 4F            │ ││  dec di                  ; erase character in TIB
-01C3 E81900        │ ││  call writechar          ; move cursor back one character
-01C6 B8200A        │ ││  mov ax,0x0a20           ; erase without moving cursor
-01C9 B90100        │ ││  mov cx,1
-01CC CD10          │ ││  int 0x10                ; (BH already set to 0 by writechar)
-01CE EBDB          │ │└──jmp .1                  ; keep reading
-01D0 B82000        │ └──►mov ax,0x0020           ; (.3:)
-01D3 AB            │     stosw                   ; put final delimiter and 0 in TIB
-01D4 E80800        │     call writechar          ; write a space between user input and
-01D7 C70602100000  │     mov word [TOIN],0       ; point >IN to start of TIB
-01DD EB9E          └─────jmp token               ; try parsing a word again
-
-     W R I T E C H A R
-                         ; writechar writes a character to the screen. It uses INT 10/AH=0e
-                         ; to perform teletype output, writing the character, updating the
-                         ; cursor, and scrolling the screen, all in one go. Writing
-                         ; backspace using the BIOS only moves the cursor backwards within
-                         ; a line, but does not move it back to the previous line.
-                         ; writechar addresses that.
-                         
-01DF 50                  push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
+01A0 E83C00        │┌────call writechar          ; CR
+01A3 B00A          ││    mov al,10
+01A5 E83700        │├────call writechar          ; LF
+01A8 BF0000        ││    mov di,TIB              ; read into TIB
+01AB B400          ││ ┌─►mov ah,0                ; wait until a key is pressed (.1:)
+01AD CD16          ││ │  int 0x16
+01AF 3C0D          ││ │  cmp al,13               ; return pressed?
+01B1 741D          ││┌│──je .3                   ; if so, finish reading
+01B3 3C08          ││││  cmp al,8                ; backspace pressed?
+01B5 7406          ││││┌─je .2                   ; if so, erase character
+01B7 E82500        │├│││─call writechar          ; otherwise, write character to screen
+01BA AA            │││││ stosb                   ; store character in TIB
+01BB EBEE          │││├│─jmp .1                  ; keep reading
+01BD 83FF00        ││││└►cmp di,TIB              ; start of TIB? (.2:)
+01C0 74E9          │││├──je .1                   ; if so, there's nothing to erase
+01C2 4F            ││││  dec di                  ; erase character in TIB
+01C3 E81900        │├││──call writechar          ; move cursor back one character
+01C6 B8200A        ││││  mov ax,0x0a20           ; erase without moving cursor
+01C9 B90100        ││││  mov cx,1
+01CC CD10          ││││  int 0x10                ; (BH already set to 0 by writechar)
+01CE EBDB          │││└──jmp .1                  ; keep reading
+01D0 B82000        ││└──►mov ax,0x0020           ; (.3:)
+01D3 AB            ││    stosw                   ; put final delimiter and 0 in TIB
+01D4 E80800        │├────call writechar          ; write a space between user input and
+01D7 C70602100000  ││    mov word [TOIN],0       ; point >IN to start of TIB
+01DD EB9E          └│────jmp token               ; try parsing a word again
+                    │    
+     W R I T E C H A│R
+                    │    ; writechar writes a character to the screen. It uses INT 10/AH=0e
+                    │    ; to perform teletype output, writing the character, updating the
+                    │    ; cursor, and scrolling the screen, all in one go. Writing
+                    │    ; backspace using the BIOS only moves the cursor backwards within
+                    │    ; a line, but does not move it back to the previous line.
+                    │    ; writechar addresses that.
+                    │    
+01DF 50             └───►push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
 01E0 B700                mov bh,0                ; video page 0 for all BIOS calls
 01E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
 01E4 CD10                int 0x10
@@ -326,12 +326,13 @@
 01E9 B307                mov bl,0x7              ; black background, light grey text
 01EB CD10                int 0x10
 01ED 3C08                cmp al,8                ; backspace?
-01EF 750C                jne .1                  ; if not, nothing else to do
-01F1 84D2                test dl,dl              ; was cursor in first column?
-01F3 7508                jnz .1                  ; if not, nothing else to do
-01F5 B402                mov ah,2                ; move cursor
-01F7 B24F                mov dl,79               ; to last column
-01F9 FECE                dec dh                  ; of previous row
-01FB CD10                int 0x10
-01FD C3              .1: ret
+01EF 750C             ┌──jne .1                  ; if not, nothing else to do
+01F1 84D2             │  test dl,dl              ; was cursor in first column?
+01F3 7508             ├──jnz .1                  ; if not, nothing else to do
+01F5 B402             │  mov ah,2                ; move cursor
+01F7 B24F             │  mov dl,79               ; to last column
+01F9 FECE             │  dec dh                  ; of previous row
+01FB CD10             │  int 0x10
+01FD C3               └─►ret                     ; (.1:)
+
 01FE 55AA                db 0x55, 0xaa
