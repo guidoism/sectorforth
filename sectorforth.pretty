@@ -241,51 +241,51 @@
                    │    
      T O K E N     │    
                    │    
-017D 8B3E0210      └────►mov di,[TOIN]           ; starting at the current position in TIB
-0181 B9FFFF              mov cx,-1               ; search "indefinitely"
-0184 B020                mov al,32               ; for a character that's not a space
-0186 F3AE                repe scasb
-0188 4F                  dec di                  ; result is one byte past found character
-0189 803D00              cmp byte [di],0         ; found a 0?
-018C 7410                je .readline            ; if so, read more input
-018E B9FFFF              mov cx,-1               ; search "indefinitely" again
-0191 F2AE                repne scasb             ; this time, for a space
-0193 4F                  dec di                  ; adjust DI again
-0194 893E0210            mov [TOIN],di           ; update current position in TIB
-0198 F7D1                not cx                  ; after ones' complement, CX=length+1
-019A 49                  dec cx                  ; adjust CX to correct length
-019B 29CF                sub di,cx               ; point to start of parsed word
-019D C3                  ret
-
-     R E A D L I N E
-
-019E B00D                mov al,13
-01A0 E83C00              call writechar          ; CR
-01A3 B00A                mov al,10
-01A5 E83700              call writechar          ; LF
-01A8 BF0000              mov di,TIB              ; read into TIB
-01AB B400            .1: mov ah,0                ; wait until a key is pressed
-01AD CD16                int 0x16
-01AF 3C0D                cmp al,13               ; return pressed?
-01B1 741D                je .3                   ; if so, finish reading
-01B3 3C08                cmp al,8                ; backspace pressed?
-01B5 7406                je .2                   ; if so, erase character
-01B7 E82500              call writechar          ; otherwise, write character to screen
-01BA AA                  stosb                   ; store character in TIB
-01BB EBEE                jmp .1                  ; keep reading
-01BD 83FF00          .2: cmp di,TIB              ; start of TIB?
-01C0 74E9                je .1                   ; if so, there's nothing to erase
-01C2 4F                  dec di                  ; erase character in TIB
-01C3 E81900              call writechar          ; move cursor back one character
-01C6 B8200A              mov ax,0x0a20           ; erase without moving cursor
-01C9 B90100              mov cx,1
-01CC CD10                int 0x10                ; (BH already set to 0 by writechar)
-01CE EBDB                jmp .1                  ; keep reading
-01D0 B82000          .3: mov ax,0x0020
-01D3 AB                  stosw                   ; put final delimiter and 0 in TIB
-01D4 E80800              call writechar          ; write a space between user input and
-01D7 C70602100000        mov word [TOIN],0       ; point >IN to start of TIB
-01DD EB9E                jmp token               ; try parsing a word again
+017D 8B3E0210      ├────►mov di,[TOIN]           ; starting at the current position in TIB
+0181 B9FFFF        │     mov cx,-1               ; search "indefinitely"
+0184 B020          │     mov al,32               ; for a character that's not a space
+0186 F3AE          │     repe scasb
+0188 4F            │     dec di                  ; result is one byte past found character
+0189 803D00        │     cmp byte [di],0         ; found a 0?
+018C 7410          │   ┌─je .readline            ; if so, read more input
+018E B9FFFF        │   │ mov cx,-1               ; search "indefinitely" again
+0191 F2AE          │   │ repne scasb             ; this time, for a space
+0193 4F            │   │ dec di                  ; adjust DI again
+0194 893E0210      │   │ mov [TOIN],di           ; update current position in TIB
+0198 F7D1          │   │ not cx                  ; after ones' complement, CX=length+1
+019A 49            │   │ dec cx                  ; adjust CX to correct length
+019B 29CF          │   │ sub di,cx               ; point to start of parsed word
+019D C3            │   │ ret
+                   │   │ 
+     R E A D L I N E   │ 
+                   │   │   
+019E B00D          │   └►mov al,13
+01A0 E83C00        │     call writechar          ; CR
+01A3 B00A          │     mov al,10
+01A5 E83700        │     call writechar          ; LF
+01A8 BF0000        │     mov di,TIB              ; read into TIB
+01AB B400          │  ┌─►mov ah,0                ; wait until a key is pressed (.1:)
+01AD CD16          │  │  int 0x16
+01AF 3C0D          │  │  cmp al,13               ; return pressed?
+01B1 741D          │ ┌│──je .3                   ; if so, finish reading
+01B3 3C08          │ ││  cmp al,8                ; backspace pressed?
+01B5 7406          │ ││┌─je .2                   ; if so, erase character
+01B7 E82500        │ │││ call writechar          ; otherwise, write character to screen
+01BA AA            │ │││ stosb                   ; store character in TIB
+01BB EBEE          │ │├│─jmp .1                  ; keep reading
+01BD 83FF00        │ ││└►cmp di,TIB              ; start of TIB? (.2:)
+01C0 74E9          │ │├──je .1                   ; if so, there's nothing to erase
+01C2 4F            │ ││  dec di                  ; erase character in TIB
+01C3 E81900        │ ││  call writechar          ; move cursor back one character
+01C6 B8200A        │ ││  mov ax,0x0a20           ; erase without moving cursor
+01C9 B90100        │ ││  mov cx,1
+01CC CD10          │ ││  int 0x10                ; (BH already set to 0 by writechar)
+01CE EBDB          │ │└──jmp .1                  ; keep reading
+01D0 B82000        │ └──►mov ax,0x0020           ; (.3:)
+01D3 AB            │     stosw                   ; put final delimiter and 0 in TIB
+01D4 E80800        │     call writechar          ; write a space between user input and
+01D7 C70602100000  │     mov word [TOIN],0       ; point >IN to start of TIB
+01DD EB9E          └─────jmp token               ; try parsing a word again
 
      W R I T E C H A R
 
