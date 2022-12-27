@@ -6,7 +6,7 @@ Inspiration to write sectorforth came from a 1996
 [Usenet thread](https://groups.google.com/g/comp.lang.forth/c/NS2icrCj1jQ)
 (in particular, Bernd Paysan's first post on the thread).
 
-Assembled and marked up with ascii-art: https://guidoism.github.io/sectorforth/sectorforth.pretty
+Assembled and marked up with ascii-art: https://guidoism.github.io/sectorforth/
 
 ## Batteries not included
 
