@@ -169,9 +169,9 @@
 0106 806702BF           │and byte [bx+2],~F_HIDDEN       ; reveal new word
 010A C606001000         │mov byte [STATE],0      ; switch to interpretation state
 010F B8[5B00]           │mov ax,EXIT             ; prepare to compile EXIT
-
-     C O M P I L E
-
+                        │
+     C O M P I L E      │
+                        │
 0112 8B3E[9300]   ┌────►│mov di,[HERE]           
 0116 AB           │     │stosw                   ; compile contents of AX to HERE
 0117 893E[9300]   │     │mov [HERE],di           ; advance HERE to next cell
