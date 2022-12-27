@@ -181,8 +181,8 @@
      S T A R T    │        
                   │       
 011E FC           │      cld                     ; clear direction flag
-011F 0E           │      push cs
-0120 0E           │      push cs
+011F 0E           │      push cs                 ; Set up segment registers to point to 
+0120 0E           │      push cs                 ;   the same segment as CS.
 0121 0E           │      push cs
 0122 1F           │      pop ds
 0123 07           │      pop es
@@ -201,12 +201,19 @@
                   │   ││
 0132 BDFE76       │   │└►mov bp,RP0              ; BP is the return stack pointer
 0135 BCFEFF       │   │  mov sp,SP0              ; SP is the data stack pointer
-0138 B000         │   │  mov al,0
-013A B90410       │   │  mov cx,STATE+4
+0138 B000         │   │  mov al,0                ; Fill TIB with zeros, and set STATE
+013A B90410       │   │  mov cx,STATE+4          ;   and >IN to 0
 013D BF0000       │   │  mov di,TIB
 0140 F3AA         │   │  rep stosb
                   │   │    
-     I N T E R P  │   │     
+     I N T E R P  │   │  ; Words are read one at time and searched for in the dictionary.
+                  │   │  ; If a word is found in the dictionary, it is either interpreted
+                  │   │  ; (i.e. executed) or compiled, depending on the current state and
+                  │   │  ; the word's IMMEDIATE flag.
+                  │   │    
+                  │   │  ; When a word is not found, the state of the interpreter is reset:
+                  │   │  ; the data and return stacks are cleared as well as the terminal
+                  │   │  ; input buffer, and the interpreter goes into interpretation mode.
                   │   │    
 0142 E83800       │┌──│──call token              ; parse word from input
 0145 8B1E[A300]   ││  │  mov bx,[LATEST]         ; start searching for it in the dictionary
@@ -231,6 +238,13 @@
 0167 EBE0         ││└│───jmp .1                  ; try again
 0169 89F0         ││ └──►mov ax,si               ; after comparison, SI points to code field (.3:)
 016B BE[7B01]     ││     mov si,.loop            ; set SI so NEXT loops back to interpreter
+                  ││     
+                  ││     ; Decide whether to interpret or compile the word. The IMMEDIATE
+                  ││     ; flag is located in the most significant bit of the flags+length
+                  ││     ; byte. STATE can only be 0 or 1. A word is only compiled when 
+                  ││     ; the result of ORing these two values together is 1. Decrementing
+                  ││     ; that result sets the zero flag for a conditional jump.
+                  ││     
 016E 80E280       ││     and dl,F_IMMEDIATE      ; isolate IMMEDIATE flag
 0171 0A160010     ││     or dl,[STATE]           ; OR with state
 0175 FECA         ││     dec dl                  ; decrement
@@ -239,8 +253,16 @@
                    │     
 017B [4201]        │     dw interpreter          ; (.loop:)
                    │    
-     T O K E N     │    
-                   │    
+     T O K E N     │     ; Parse a word from the terminal input buffer and return its
+                   │     ; address and length in DI and CX, respectively.
+                   │     
+                   │     ; If after skipping spaces a 0 is found, more input is read from
+                   │     ; the keyboard into the terminal input buffer until return is
+                   │     ; pressed, at which point execution jumps back to the beginning of
+                   │     
+                   │     ; Before reading input from the keyboard, a CRLF is emitted so
+                   │     ; the user can enter input on a fresh, blank line on the screen.
+                   │     
 017D 8B3E0210      ├────►mov di,[TOIN]           ; starting at the current position in TIB
 0181 B9FFFF        │     mov cx,-1               ; search "indefinitely"
 0184 B020          │     mov al,32               ; for a character that's not a space
@@ -288,7 +310,13 @@
 01DD EB9E          └─────jmp token               ; try parsing a word again
 
      W R I T E C H A R
-
+                         ; writechar writes a character to the screen. It uses INT 10/AH=0e
+                         ; to perform teletype output, writing the character, updating the
+                         ; cursor, and scrolling the screen, all in one go. Writing
+                         ; backspace using the BIOS only moves the cursor backwards within
+                         ; a line, but does not move it back to the previous line.
+                         ; writechar addresses that.
+                         
 01DF 50                  push ax                 ; INT 10h/AH=03h clobbers AX in some BIOSes
 01E0 B700                mov bh,0                ; video page 0 for all BIOS calls
 01E2 B403                mov ah,3                ; get cursor position (DH=row, DL=column)
